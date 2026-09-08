@@ -1,0 +1,6 @@
+variable,screening_rule,invalid_data_count,treatment
+price,Price <= $1 is treated as an invalid or placeholder value.,0,No such observations remain after Part 2 cleaning.
+area,Living area must be greater than zero.,0,No invalid observations remain.
+beds,Bedroom count cannot be negative.,0,No invalid observations remain.
+baths,Bathroom count cannot be negative.,0,No invalid observations remain.
+statistical_outliers,IQR and z-score methods identify unusual observations.,0,Statistical outliers are retained unless a separate data-quality investigation establishes that the observation is invalid.

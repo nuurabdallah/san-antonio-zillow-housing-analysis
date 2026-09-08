@@ -1,0 +1,5 @@
+classification,property_count,percentage_of_dataset
+No IQR Flag,620,76.54
+Both Market-Wide and Property-Type,169,20.86
+Market-Wide Only,14,1.73
+Property-Type Only,7,0.86
