@@ -1,0 +1,12 @@
+feature,data_type,non_null_count,missing_count,missing_percentage,unique_values
+zipcode,string,810,0,0.0,59
+pricePerSqFt,float64,810,0,0.0,807
+logPrice,float64,810,0,0.0,436
+zestimate_gap,float64,576,234,28.888888888888886,269
+zestimate_gap_pct,float64,576,234,28.888888888888886,557
+deal_score,float64,576,234,28.888888888888886,557
+opportunity_status,object,810,0,0.0,3
+price_segment,object,810,0,0.0,6
+zip_listing_count,int64,810,0,0.0,31
+zip_sample_status,object,810,0,0.0,2
+hasPriceChange,int64,810,0,0.0,2

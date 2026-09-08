@@ -1,0 +1,17 @@
+feature,definition,category,ml_safe,reason
+zipcode,Standardized ZIP code derived from the Zillow addressZipcode field.,Location,Potential,Geographic context; not used in the finalized ML model.
+pricePerSqFt,Listing price divided by living area in square feet.,Business Analysis,No,Contains listing price and therefore introduces target leakage.
+logPrice,Natural logarithm of listing price.,ML Target,Target,This is the dependent variable used for price prediction.
+zestimate_gap,Zestimate minus listing price.,Business Analysis,No,Directly contains the target listing price.
+zestimate_gap_pct,(Zestimate minus listing price) divided by listing price.,Business Analysis,No,Directly contains the target listing price.
+deal_score,Percentile-based score representing relative Zestimate gap percentage.,Business Analysis,No,Derived from Zestimate gap percentage and listing price.
+opportunity_status,Classification based on whether Zestimate exceeds listing price.,Business Analysis,No,Uses listing price and Zestimate.
+price_segment,Categorical grouping of properties by listing price.,Business Analysis,No,Derived directly from listing price.
+zip_listing_count,Number of listings represented in the same ZIP code.,Market Context,Potential,Contextual feature; not used in the finalized ML model.
+zip_sample_status,Indicates whether a ZIP has at least 10 listings.,Market Context,Potential,Used for analytical reliability rather than the finalized ML model.
+area,Living area in square feet.,ML Predictor,Yes,Property characteristic available independently of target price.
+beds,Number of bedrooms.,ML Predictor,Yes,Property characteristic available independently of target price.
+baths,Number of bathrooms.,ML Predictor,Yes,Property characteristic available independently of target price.
+lotAreaSqFt,Lot area standardized to square feet.,ML Predictor,Yes,Property characteristic available independently of target price.
+taxAssessedValue,Tax-assessed value reported in the Zillow data.,ML Predictor,Yes,Independent property valuation feature retained in the finalized model.
+daysOnZillow,Number of days the property has been listed on Zillow.,ML Predictor,Yes,Listing-duration characteristic retained in the finalized model.
