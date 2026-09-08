@@ -11,25 +11,28 @@ Workflow:
 1. Load the processed Zillow dataset.
 2. Inspect the initial dataset.
 3. Validate key fields.
-4. Remove invalid listing prices.
+4. Remove missing or placeholder listing prices.
 5. Remove LOT properties.
 6. Remove records with invalid living area.
 7. Remove implausible bathroom counts above 20.
 8. Convert negative daysOnZillow values to missing.
-9. Convert invalid Zestimate values of 0 to missing.
+9. Convert Zestimate values of 0 to missing.
 10. Recalculate price per square foot.
 11. Create log-transformed listing price.
-12. Preserve legitimate high-value properties and other
+12. Create a price-change indicator.
+13. Preserve legitimate high-value properties and other
     legitimate outliers.
-13. Validate duplicate property identifiers.
-14. Report the impact of each cleaning rule.
-15. Save the analysis-ready dataset.
+14. Validate duplicate property identifiers.
+15. Report the impact of each cleaning rule.
+16. Perform final data-quality validation.
+17. Save the analysis-ready dataset.
 
 Important:
+- Listing prices of $1 or less are treated as placeholder or
+  invalid listing values rather than meaningful market asking prices.
 - Missing Zestimate values are retained as missing.
 - Missing tax-assessed values are retained as missing.
-- Legitimate outliers are retained rather than automatically
-  deleted.
+- Legitimate outliers are retained rather than automatically deleted.
 - No artificial listing dates are created.
 - Price-derived variables are not used as independent ML
   predictors when they contain the target variable.
@@ -187,7 +190,10 @@ def convert_numeric_columns(df):
 
 def remove_invalid_prices(df):
     """
-    Remove records with missing or non-positive listing prices.
+    Remove records with missing or placeholder listing prices.
+
+    Listing prices of $1 or less are treated as invalid or
+    placeholder values rather than meaningful market asking prices.
     """
 
     before = len(df)
@@ -195,7 +201,7 @@ def remove_invalid_prices(df):
     invalid_price = (
         df["unformattedPrice"].isna()
         |
-        (df["unformattedPrice"] <= 0)
+        (df["unformattedPrice"] <= 1)
     )
 
     removed = invalid_price.sum()
@@ -211,7 +217,8 @@ def remove_invalid_prices(df):
     print("-" * 60)
 
     print(
-        f"Invalid price records removed: {removed:,}"
+        f"Invalid or placeholder price records removed: "
+        f"{removed:,}"
     )
 
     print(
@@ -583,6 +590,18 @@ def create_price_change_flag(df):
 
         df["hasPriceChange"] = 0
 
+        print("\n" + "-" * 60)
+        print("FEATURE ENGINEERING — PRICE CHANGE FLAG")
+        print("-" * 60)
+
+        print(
+            "priceChange column not available."
+        )
+
+        print(
+            "hasPriceChange defaulted to 0."
+        )
+
         return df
 
     price_change = pd.to_numeric(
@@ -732,10 +751,6 @@ def final_validation(df):
             f"{df['zpid'].duplicated().sum():,}"
         )
 
-    # --------------------------------------------------------
-    # Required analytical fields
-    # --------------------------------------------------------
-
     validation_fields = [
         "unformattedPrice",
         "area",
@@ -763,24 +778,16 @@ def final_validation(df):
                 f"  {field}: {missing:,}"
             )
 
-    # --------------------------------------------------------
-    # Price validation
-    # --------------------------------------------------------
-
     invalid_prices = (
         df["unformattedPrice"].isna()
         |
-        (df["unformattedPrice"] <= 0)
+        (df["unformattedPrice"] <= 1)
     ).sum()
 
     print(
-        f"\nInvalid listing prices remaining: "
+        f"\nInvalid or placeholder listing prices remaining: "
         f"{invalid_prices:,}"
     )
-
-    # --------------------------------------------------------
-    # Area validation
-    # --------------------------------------------------------
 
     invalid_area = (
         df["area"].isna()
@@ -793,10 +800,6 @@ def final_validation(df):
         f"{invalid_area:,}"
     )
 
-    # --------------------------------------------------------
-    # Price/SF validation
-    # --------------------------------------------------------
-
     invalid_price_sqft = (
         ~np.isfinite(
             df["pricePerSqFt"]
@@ -807,10 +810,6 @@ def final_validation(df):
         f"Invalid pricePerSqFt values remaining: "
         f"{invalid_price_sqft:,}"
     )
-
-    # --------------------------------------------------------
-    # Log price validation
-    # --------------------------------------------------------
 
     invalid_log_price = (
         df["logPrice"].isna()
@@ -877,31 +876,15 @@ def main():
 
     print("=" * 60)
 
-    # --------------------------------------------------------
-    # Load
-    # --------------------------------------------------------
-
     df = load_dataset()
-
-    # --------------------------------------------------------
-    # Validate structure
-    # --------------------------------------------------------
 
     validate_required_columns(
         df
     )
 
-    # --------------------------------------------------------
-    # Convert data types
-    # --------------------------------------------------------
-
     df = convert_numeric_columns(
         df
     )
-
-    # --------------------------------------------------------
-    # Cleaning
-    # --------------------------------------------------------
 
     df = remove_invalid_prices(
         df
@@ -927,10 +910,6 @@ def main():
         df
     )
 
-    # --------------------------------------------------------
-    # Feature engineering
-    # --------------------------------------------------------
-
     df = create_price_per_sqft(
         df
     )
@@ -943,10 +922,6 @@ def main():
         df
     )
 
-    # --------------------------------------------------------
-    # Validation
-    # --------------------------------------------------------
-
     validate_duplicates(
         df
     )
@@ -958,10 +933,6 @@ def main():
     final_validation(
         df
     )
-
-    # --------------------------------------------------------
-    # Save
-    # --------------------------------------------------------
 
     save_dataset(
         df
@@ -980,3 +951,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+   
