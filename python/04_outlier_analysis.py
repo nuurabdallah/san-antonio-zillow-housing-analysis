@@ -89,6 +89,10 @@ def prepare_numeric_data(df):
     Create an analysis copy and convert selected variables
     to numeric values.
 
+    Zillow price values may contain currency symbols,
+    commas, or K/M abbreviations. These are converted
+    to numeric dollar values.
+
     The original dataframe is not modified.
     """
 
@@ -98,10 +102,93 @@ def prepare_numeric_data(df):
 
         if column in data.columns:
 
-            data[column] = pd.to_numeric(
-                data[column],
-                errors="coerce"
-            )
+            # ------------------------------------------------
+            # PRICE FIX
+            # ------------------------------------------------
+            if column == "price":
+
+                # First attempt to convert directly.
+                numeric_price = pd.to_numeric(
+                    data[column],
+                    errors="coerce"
+                )
+
+                # Parse Zillow-formatted prices such as:
+                # $269,000
+                # $151K
+                # $1.5M
+                price_text = (
+                    data[column]
+                    .astype("string")
+                    .str.strip()
+                    .str.upper()
+                    .str.replace(
+                        "$",
+                        "",
+                        regex=False
+                    )
+                    .str.replace(
+                        ",",
+                        "",
+                        regex=False
+                    )
+                )
+
+                multiplier = np.where(
+                    price_text.str.endswith(
+                        "M",
+                        na=False
+                    ),
+                    1_000_000,
+                    np.where(
+                        price_text.str.endswith(
+                            "K",
+                            na=False
+                        ),
+                        1_000,
+                        1
+                    )
+                )
+
+                parsed_price = pd.to_numeric(
+                    price_text.str.replace(
+                        r"[KM]$",
+                        "",
+                        regex=True
+                    ),
+                    errors="coerce"
+                ) * multiplier
+
+                # Use parsed Zillow price where direct
+                # numeric conversion was unsuccessful.
+                numeric_price = numeric_price.fillna(
+                    parsed_price
+                )
+
+                # Use unformattedPrice as a final fallback
+                # if that column exists.
+                if "unformattedPrice" in data.columns:
+
+                    fallback_price = pd.to_numeric(
+                        data["unformattedPrice"],
+                        errors="coerce"
+                    )
+
+                    numeric_price = numeric_price.fillna(
+                        fallback_price
+                    )
+
+                data[column] = numeric_price
+
+            # ------------------------------------------------
+            # ALL OTHER NUMERIC VARIABLES
+            # ------------------------------------------------
+            else:
+
+                data[column] = pd.to_numeric(
+                    data[column],
+                    errors="coerce"
+                )
 
     return data
 
@@ -1679,5 +1766,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
