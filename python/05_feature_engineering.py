@@ -156,8 +156,10 @@ def normalize_numeric_columns(df):
     """
     Convert relevant fields to numeric values.
 
-    Zillow data can contain formatted price strings, so price
-    is handled separately from standard numeric fields.
+    Zillow listing prices can contain formats such as:
+        $269,000
+        $151K
+        $1.5M
     """
 
     numeric_columns = [
@@ -190,6 +192,8 @@ def normalize_numeric_columns(df):
     )
 
     def parse_price(value):
+        """Convert Zillow-formatted price strings to numeric."""
+
         if pd.isna(value):
             return np.nan
 
@@ -198,7 +202,12 @@ def normalize_numeric_columns(df):
         if text == "":
             return np.nan
 
-        text = text.replace("$", "").replace(",", "").strip()
+        text = (
+            text
+            .replace("$", "")
+            .replace(",", "")
+            .strip()
+        )
 
         try:
             if text.endswith("M"):
@@ -212,9 +221,13 @@ def normalize_numeric_columns(df):
         except (ValueError, TypeError):
             return np.nan
 
-    parsed_price = original_price.apply(parse_price)
+    parsed_price = original_price.apply(
+        parse_price
+    )
 
-    df["price"] = numeric_price.fillna(parsed_price)
+    df["price"] = numeric_price.fillna(
+        parsed_price
+    )
 
     print("Numeric fields normalized.")
     print()
@@ -235,8 +248,14 @@ def validate_dataset_integrity(df):
     print()
 
     row_count = len(df)
+
     unique_zpid = df["zpid"].nunique()
-    duplicate_zpid = df["zpid"].duplicated().sum()
+
+    duplicate_zpid = (
+        df["zpid"]
+        .duplicated()
+        .sum()
+    )
 
     print(f"Rows: {row_count:,}")
     print(f"Unique zpid: {unique_zpid:,}")
@@ -244,13 +263,14 @@ def validate_dataset_integrity(df):
 
     if row_count != EXPECTED_ROWS:
         raise ValueError(
-            f"Expected {EXPECTED_ROWS} rows, found {row_count}."
+            f"Expected {EXPECTED_ROWS} rows, "
+            f"found {row_count}."
         )
 
     if unique_zpid != EXPECTED_ROWS:
         raise ValueError(
-            "The number of unique properties does not equal "
-            "the expected 810-property population."
+            "The number of unique properties does not "
+            "equal the expected 810-property population."
         )
 
     if duplicate_zpid != 0:
@@ -335,10 +355,12 @@ def create_zestimate_features(df):
         Zestimate minus listing price.
 
     zestimate_gap_pct:
-        Percentage difference between Zestimate and listing price.
+        Percentage difference between Zestimate
+        and listing price.
 
     opportunity_status:
-        Potential Opportunity when Zestimate exceeds listing price.
+        Potential Opportunity when Zestimate exceeds
+        listing price.
     """
 
     valid_zestimate = (
@@ -355,8 +377,10 @@ def create_zestimate_features(df):
 
     df["zestimate_gap_pct"] = np.where(
         valid_zestimate,
-        (df["zestimate"] - df["price"])
-        / df["price"],
+        (
+            (df["zestimate"] - df["price"])
+            / df["price"]
+        ),
         np.nan
     )
 
@@ -384,13 +408,15 @@ def create_zestimate_features(df):
 
 def create_deal_score(df):
     """
-    Create a relative Deal Score based on Zestimate gap percentage.
+    Create a relative Deal Score based on Zestimate
+    gap percentage.
 
     Deal Score:
         100 * percentile rank of zestimate_gap_pct
 
-    Higher values indicate a property is further below its
-    Zestimate relative to other properties with valid Zestimate data.
+    Higher values indicate that a property has a larger
+    positive Zestimate gap relative to other properties
+    with available Zestimate data.
 
     This is a business-analysis metric and must not be used
     as an ML predictor.
@@ -398,12 +424,21 @@ def create_deal_score(df):
 
     df["deal_score"] = np.nan
 
-    valid = df["zestimate_gap_pct"].notna()
+    valid = (
+        df["zestimate_gap_pct"]
+        .notna()
+    )
 
     if valid.sum() > 0:
         df.loc[valid, "deal_score"] = (
-            df.loc[valid, "zestimate_gap_pct"]
-            .rank(method="min", pct=True)
+            df.loc[
+                valid,
+                "zestimate_gap_pct"
+            ]
+            .rank(
+                method="min",
+                pct=True
+            )
             * 100
         )
 
@@ -441,7 +476,7 @@ def create_price_segments(df):
     df["price_segment"] = np.select(
         conditions,
         choices,
-        default=np.nan,
+        default="Unclassified",
     )
 
     print("Created price segments.")
@@ -458,7 +493,9 @@ def create_zip_features(df):
     """
     Create ZIP-level sample-size features.
 
-    ZIPs with fewer than 10 listings are classified as sparse.
+    ZIPs with fewer than 10 listings are classified
+    as sparse.
+
     Sparse ZIPs remain in the dataset and are not removed.
     """
 
@@ -470,7 +507,8 @@ def create_zip_features(df):
     df["zip_listing_count"] = zip_counts
 
     df["zip_sample_status"] = np.where(
-        df["zip_listing_count"] >= MIN_ZIP_SAMPLE_SIZE,
+        df["zip_listing_count"]
+        >= MIN_ZIP_SAMPLE_SIZE,
         "Sufficient Sample",
         "Sparse Sample",
     )
@@ -491,13 +529,16 @@ def create_price_change_flag(df):
     if "priceChange" in df.columns:
 
         df["hasPriceChange"] = np.where(
-            df["priceChange"].notna()
-            & (df["priceChange"] != 0),
+            (
+                df["priceChange"].notna()
+                & (df["priceChange"] != 0)
+            ),
             1,
             0,
         )
 
     else:
+
         df["hasPriceChange"] = 0
 
     print("Created hasPriceChange.")
@@ -538,13 +579,19 @@ def create_feature_summary(df):
             {
                 "feature": feature,
                 "data_type": str(series.dtype),
-                "non_null_count": series.notna().sum(),
-                "missing_count": series.isna().sum(),
+                "non_null_count": (
+                    series.notna().sum()
+                ),
+                "missing_count": (
+                    series.isna().sum()
+                ),
                 "missing_percentage": (
                     series.isna().mean() * 100
                 ),
-                "unique_values": series.nunique(
-                    dropna=True
+                "unique_values": (
+                    series.nunique(
+                        dropna=True
+                    )
                 ),
             }
         )
@@ -562,112 +609,196 @@ def create_feature_dictionary():
     definitions = [
         {
             "feature": "pricePerSqFt",
-            "definition": "Listing price divided by living area in square feet.",
+            "definition": (
+                "Listing price divided by living area "
+                "in square feet."
+            ),
             "category": "Business Analysis",
             "ml_safe": "No",
-            "reason": "Contains listing price and therefore introduces target leakage.",
+            "reason": (
+                "Contains listing price and therefore "
+                "introduces target leakage."
+            ),
         },
         {
             "feature": "logPrice",
-            "definition": "Natural logarithm of listing price.",
+            "definition": (
+                "Natural logarithm of listing price."
+            ),
             "category": "ML Target",
             "ml_safe": "Target",
-            "reason": "This is the dependent variable used for price prediction.",
+            "reason": (
+                "This is the dependent variable used "
+                "for price prediction."
+            ),
         },
         {
             "feature": "zestimate_gap",
-            "definition": "Zestimate minus listing price.",
+            "definition": (
+                "Zestimate minus listing price."
+            ),
             "category": "Business Analysis",
             "ml_safe": "No",
-            "reason": "Directly contains the target listing price.",
+            "reason": (
+                "Directly contains the target "
+                "listing price."
+            ),
         },
         {
             "feature": "zestimate_gap_pct",
-            "definition": "(Zestimate minus listing price) divided by listing price.",
+            "definition": (
+                "(Zestimate minus listing price) "
+                "divided by listing price."
+            ),
             "category": "Business Analysis",
             "ml_safe": "No",
-            "reason": "Directly contains the target listing price.",
+            "reason": (
+                "Directly contains the target "
+                "listing price."
+            ),
         },
         {
             "feature": "deal_score",
-            "definition": "Percentile-based score representing relative Zestimate gap percentage.",
+            "definition": (
+                "Percentile-based score representing "
+                "relative Zestimate gap percentage."
+            ),
             "category": "Business Analysis",
             "ml_safe": "No",
-            "reason": "Derived from Zestimate gap percentage and listing price.",
+            "reason": (
+                "Derived from Zestimate gap percentage "
+                "and listing price."
+            ),
         },
         {
             "feature": "opportunity_status",
-            "definition": "Classification based on whether Zestimate exceeds listing price.",
+            "definition": (
+                "Classification based on whether "
+                "Zestimate exceeds listing price."
+            ),
             "category": "Business Analysis",
             "ml_safe": "No",
-            "reason": "Uses listing price and Zestimate.",
+            "reason": (
+                "Uses listing price and Zestimate."
+            ),
         },
         {
             "feature": "price_segment",
-            "definition": "Categorical grouping of properties by listing price.",
+            "definition": (
+                "Categorical grouping of properties "
+                "by listing price."
+            ),
             "category": "Business Analysis",
             "ml_safe": "No",
-            "reason": "Derived directly from listing price.",
+            "reason": (
+                "Derived directly from listing price."
+            ),
         },
         {
             "feature": "zip_listing_count",
-            "definition": "Number of listings represented in the same ZIP code.",
+            "definition": (
+                "Number of listings represented "
+                "in the same ZIP code."
+            ),
             "category": "Market Context",
             "ml_safe": "Potential",
-            "reason": "Contextual feature; not used in the finalized ML model.",
+            "reason": (
+                "Contextual feature; not used in "
+                "the finalized ML model."
+            ),
         },
         {
             "feature": "zip_sample_status",
-            "definition": "Indicates whether a ZIP has at least 10 listings.",
+            "definition": (
+                "Indicates whether a ZIP has at "
+                "least 10 listings."
+            ),
             "category": "Market Context",
             "ml_safe": "Potential",
-            "reason": "Used for analytical reliability rather than the finalized ML model.",
+            "reason": (
+                "Used for analytical reliability "
+                "rather than the finalized ML model."
+            ),
         },
         {
             "feature": "area",
-            "definition": "Living area in square feet.",
+            "definition": (
+                "Living area in square feet."
+            ),
             "category": "ML Predictor",
             "ml_safe": "Yes",
-            "reason": "Property characteristic available independently of target price.",
+            "reason": (
+                "Property characteristic available "
+                "independently of target price."
+            ),
         },
         {
             "feature": "beds",
-            "definition": "Number of bedrooms.",
+            "definition": (
+                "Number of bedrooms."
+            ),
             "category": "ML Predictor",
             "ml_safe": "Yes",
-            "reason": "Property characteristic available independently of target price.",
+            "reason": (
+                "Property characteristic available "
+                "independently of target price."
+            ),
         },
         {
             "feature": "baths",
-            "definition": "Number of bathrooms.",
+            "definition": (
+                "Number of bathrooms."
+            ),
             "category": "ML Predictor",
             "ml_safe": "Yes",
-            "reason": "Property characteristic available independently of target price.",
+            "reason": (
+                "Property characteristic available "
+                "independently of target price."
+            ),
         },
         {
             "feature": "lotAreaSqFt",
-            "definition": "Lot area standardized to square feet.",
+            "definition": (
+                "Lot area standardized to square feet."
+            ),
             "category": "ML Predictor",
             "ml_safe": "Yes",
-            "reason": "Property characteristic available independently of target price.",
+            "reason": (
+                "Property characteristic available "
+                "independently of target price."
+            ),
         },
         {
             "feature": "taxAssessedValue",
-            "definition": "Tax-assessed value reported in the Zillow data.",
+            "definition": (
+                "Tax-assessed value reported in "
+                "the Zillow data."
+            ),
             "category": "ML Predictor",
             "ml_safe": "Yes",
-            "reason": "Independent property valuation feature retained in the finalized model.",
+            "reason": (
+                "Independent property valuation feature "
+                "retained in the finalized model."
+            ),
         },
         {
             "feature": "daysOnZillow",
-            "definition": "Number of days the property has been listed on Zillow.",
+            "definition": (
+                "Number of days the property has "
+                "been listed on Zillow."
+            ),
             "category": "ML Predictor",
             "ml_safe": "Yes",
-            "reason": "Listing-duration characteristic retained in the finalized model.",
+            "reason": (
+                "Listing-duration characteristic retained "
+                "in the finalized model."
+            ),
         },
     ]
 
-    return pd.DataFrame(definitions)
+    return pd.DataFrame(
+        definitions
+    )
 
 
 # ============================================================
@@ -686,17 +817,43 @@ def validate_engineered_features(df):
     # Population
     # --------------------------------------------------------
 
-    print(f"Total rows: {len(df):,}")
-    print(f"Unique zpids: {df['zpid'].nunique():,}")
+    print(
+        f"Total rows: {len(df):,}"
+    )
+
+    print(
+        f"Unique zpids: "
+        f"{df['zpid'].nunique():,}"
+    )
 
     if len(df) != EXPECTED_ROWS:
         raise ValueError(
-            "Feature engineering changed the dataset population."
+            "Feature engineering changed "
+            "the dataset population."
         )
 
     if df["zpid"].nunique() != EXPECTED_ROWS:
         raise ValueError(
             "Duplicate or missing zpid values detected."
+        )
+
+    # --------------------------------------------------------
+    # Duplicate identifiers
+    # --------------------------------------------------------
+
+    duplicate_count = (
+        df["zpid"]
+        .duplicated()
+        .sum()
+    )
+
+    print(
+        f"Duplicate zpids: {duplicate_count:,}"
+    )
+
+    if duplicate_count != 0:
+        raise ValueError(
+            "Duplicate zpid values detected."
         )
 
     # --------------------------------------------------------
@@ -708,7 +865,9 @@ def validate_engineered_features(df):
         | (df["price"] <= 0)
     ).sum()
 
-    print(f"Invalid prices: {invalid_price}")
+    print(
+        f"Invalid prices: {invalid_price:,}"
+    )
 
     if invalid_price != 0:
         raise ValueError(
@@ -725,17 +884,25 @@ def validate_engineered_features(df):
         & (df["area"] > 0)
     )
 
+    expected_ppsf = (
+        df.loc[valid_ppsf, "price"]
+        / df.loc[valid_ppsf, "area"]
+    )
+
+    actual_ppsf = (
+        df.loc[valid_ppsf, "pricePerSqFt"]
+    )
+
     ppsf_mismatch = (
         np.abs(
-            df.loc[valid_ppsf, "pricePerSqFt"]
-            - (
-                df.loc[valid_ppsf, "price"]
-                / df.loc[valid_ppsf, "area"]
-            )
+            actual_ppsf - expected_ppsf
         ) > 0.01
     ).sum()
 
-    print(f"Price/Sq Ft mismatches: {ppsf_mismatch}")
+    print(
+        f"Price/Sq Ft mismatches: "
+        f"{ppsf_mismatch:,}"
+    )
 
     if ppsf_mismatch != 0:
         raise ValueError(
@@ -746,16 +913,28 @@ def validate_engineered_features(df):
     # Log price
     # --------------------------------------------------------
 
-    valid_log = df["logPrice"].notna()
+    valid_log = (
+        df["logPrice"].notna()
+    )
+
+    expected_log = np.log(
+        df.loc[valid_log, "price"]
+    )
+
+    actual_log = (
+        df.loc[valid_log, "logPrice"]
+    )
 
     log_mismatch = (
         np.abs(
-            df.loc[valid_log, "logPrice"]
-            - np.log(df.loc[valid_log, "price"])
+            actual_log - expected_log
         ) > 1e-10
     ).sum()
 
-    print(f"Log price mismatches: {log_mismatch}")
+    print(
+        f"Log price mismatches: "
+        f"{log_mismatch:,}"
+    )
 
     if log_mismatch != 0:
         raise ValueError(
@@ -766,16 +945,115 @@ def validate_engineered_features(df):
     # Zestimate
     # --------------------------------------------------------
 
-    zestimate_count = df["zestimate"].notna().sum()
+    zestimate_count = (
+        df["zestimate"]
+        .notna()
+        .sum()
+    )
 
-    gap_count = df["zestimate_gap"].notna().sum()
+    gap_count = (
+        df["zestimate_gap"]
+        .notna()
+        .sum()
+    )
 
-    print(f"Listings with Zestimate: {zestimate_count:,}")
-    print(f"Listings with Zestimate gap: {gap_count:,}")
+    print(
+        f"Listings with Zestimate: "
+        f"{zestimate_count:,}"
+    )
+
+    print(
+        f"Listings with Zestimate gap: "
+        f"{gap_count:,}"
+    )
 
     if zestimate_count != gap_count:
         raise ValueError(
-            "Zestimate gap coverage does not match Zestimate coverage."
+            "Zestimate gap coverage does not "
+            "match Zestimate coverage."
+        )
+
+    # --------------------------------------------------------
+    # Zestimate gap validation
+    # --------------------------------------------------------
+
+    valid_gap = (
+        df["zestimate_gap"].notna()
+    )
+
+    expected_gap = (
+        df.loc[valid_gap, "zestimate"]
+        - df.loc[valid_gap, "price"]
+    )
+
+    actual_gap = (
+        df.loc[valid_gap, "zestimate_gap"]
+    )
+
+    gap_mismatch = (
+        np.abs(
+            expected_gap - actual_gap
+        ) > 0.01
+    ).sum()
+
+    print(
+        f"Zestimate gap mismatches: "
+        f"{gap_mismatch:,}"
+    )
+
+    if gap_mismatch != 0:
+        raise ValueError(
+            "Zestimate gap validation failed."
+        )
+
+    # --------------------------------------------------------
+    # Zestimate gap percentage validation
+    # --------------------------------------------------------
+
+    valid_gap_pct = (
+        df["zestimate_gap_pct"]
+        .notna()
+    )
+
+    expected_gap_pct = (
+        (
+            df.loc[
+                valid_gap_pct,
+                "zestimate"
+            ]
+            - df.loc[
+                valid_gap_pct,
+                "price"
+            ]
+        )
+        / df.loc[
+            valid_gap_pct,
+            "price"
+        ]
+    )
+
+    actual_gap_pct = (
+        df.loc[
+            valid_gap_pct,
+            "zestimate_gap_pct"
+        ]
+    )
+
+    gap_pct_mismatch = (
+        np.abs(
+            expected_gap_pct
+            - actual_gap_pct
+        ) > 1e-10
+    ).sum()
+
+    print(
+        f"Zestimate gap % mismatches: "
+        f"{gap_pct_mismatch:,}"
+    )
+
+    if gap_pct_mismatch != 0:
+        raise ValueError(
+            "Zestimate gap percentage validation failed."
         )
 
     # --------------------------------------------------------
@@ -784,10 +1062,14 @@ def validate_engineered_features(df):
 
     opportunity_count = (
         df["opportunity_status"]
-        == "Potential Opportunity"
-    ).sum()
+        .eq("Potential Opportunity")
+        .sum()
+    )
 
-    print(f"Potential opportunities: {opportunity_count:,}")
+    print(
+        f"Potential opportunities: "
+        f"{opportunity_count:,}"
+    )
 
     if opportunity_count != 16:
         raise ValueError(
@@ -799,43 +1081,127 @@ def validate_engineered_features(df):
     # Deal Score
     # --------------------------------------------------------
 
-    deal_score_count = df["deal_score"].notna().sum()
+    deal_score_count = (
+        df["deal_score"]
+        .notna()
+        .sum()
+    )
 
-    print(f"Deal Score records: {deal_score_count:,}")
+    print(
+        f"Deal Score records: "
+        f"{deal_score_count:,}"
+    )
 
     if deal_score_count != zestimate_count:
         raise ValueError(
-            "Deal Score coverage does not match Zestimate coverage."
+            "Deal Score coverage does not "
+            "match Zestimate coverage."
         )
+
+    # --------------------------------------------------------
+    # Deal Score range
+    # --------------------------------------------------------
+
+    if deal_score_count > 0:
+
+        minimum_score = (
+            df["deal_score"]
+            .min()
+        )
+
+        maximum_score = (
+            df["deal_score"]
+            .max()
+        )
+
+        print(
+            f"Deal Score range: "
+            f"{minimum_score:.2f} - "
+            f"{maximum_score:.2f}"
+        )
+
+        if minimum_score < 0:
+            raise ValueError(
+                "Deal Score contains values below 0."
+            )
+
+        if maximum_score > 100:
+            raise ValueError(
+                "Deal Score contains values above 100."
+            )
 
     # --------------------------------------------------------
     # Price segments
     # --------------------------------------------------------
 
-    segment_count = df["price_segment"].notna().sum()
+    segment_count = (
+        df["price_segment"]
+        .notna()
+        .sum()
+    )
 
-    print(f"Price segment records: {segment_count:,}")
+    print(
+        f"Price segment records: "
+        f"{segment_count:,}"
+    )
 
     if segment_count != EXPECTED_ROWS:
         raise ValueError(
-            "Price segments do not cover all properties."
+            "Price segments do not cover "
+            "all properties."
         )
 
     # --------------------------------------------------------
     # ZIP sample status
     # --------------------------------------------------------
 
-    zip_status_count = df["zip_sample_status"].notna().sum()
+    zip_status_count = (
+        df["zip_sample_status"]
+        .notna()
+        .sum()
+    )
 
-    print(f"ZIP sample-status records: {zip_status_count:,}")
+    print(
+        f"ZIP sample-status records: "
+        f"{zip_status_count:,}"
+    )
 
     if zip_status_count != EXPECTED_ROWS:
         raise ValueError(
-            "ZIP sample status does not cover all properties."
+            "ZIP sample status does not cover "
+            "all properties."
+        )
+
+    # --------------------------------------------------------
+    # ML predictors
+    # --------------------------------------------------------
+
+    missing_ml_columns = [
+        column
+        for column in ML_PREDICTORS
+        if column not in df.columns
+    ]
+
+    if missing_ml_columns:
+        raise ValueError(
+            "Missing ML predictor columns: "
+            + ", ".join(missing_ml_columns)
         )
 
     print()
-    print("All engineered feature validation checks passed.")
+    print(
+        "ML predictor columns validated."
+    )
+
+    # --------------------------------------------------------
+    # Final validation
+    # --------------------------------------------------------
+
+    print()
+    print(
+        "All engineered feature validation "
+        "checks passed."
+    )
     print()
 
     return df
@@ -848,15 +1214,22 @@ def validate_engineered_features(df):
 def create_methodology_document(df):
     """Create feature-engineering methodology documentation."""
 
-    zestimate_count = df["zestimate"].notna().sum()
+    zestimate_count = (
+        df["zestimate"]
+        .notna()
+        .sum()
+    )
+
     opportunity_count = (
         df["opportunity_status"]
-        == "Potential Opportunity"
-    ).sum()
+        .eq("Potential Opportunity")
+        .sum()
+    )
 
     sufficient_zip_count = (
         df.loc[
-            df["zip_sample_status"] == "Sufficient Sample",
+            df["zip_sample_status"]
+            == "Sufficient Sample",
             "zipcode",
         ]
         .nunique()
@@ -864,7 +1237,8 @@ def create_methodology_document(df):
 
     sparse_zip_count = (
         df.loc[
-            df["zip_sample_status"] == "Sparse Sample",
+            df["zip_sample_status"]
+            == "Sparse Sample",
             "zipcode",
         ]
         .nunique()
@@ -1093,23 +1467,45 @@ def save_reports(
     )
 
     with open(
-        OUTPUT_DIR / "FEATURE_ENGINEERING_METHODOLOGY.md",
+        OUTPUT_DIR
+        / "FEATURE_ENGINEERING_METHODOLOGY.md",
         "w",
         encoding="utf-8",
     ) as file:
-        file.write(methodology)
+
+        file.write(
+            methodology
+        )
 
     print("=" * 70)
     print("FEATURE ENGINEERING OUTPUTS SAVED")
     print("=" * 70)
     print()
-    print(f"Feature-engineered dataset:")
-    print(f"  {OUTPUT_FILE}")
+
+    print(
+        "Feature-engineered dataset:"
+    )
+
+    print(
+        f"  {OUTPUT_FILE}"
+    )
+
     print()
+
     print("Reports:")
-    print("  - feature_summary.csv")
-    print("  - feature_dictionary.csv")
-    print("  - FEATURE_ENGINEERING_METHODOLOGY.md")
+
+    print(
+        "  - feature_summary.csv"
+    )
+
+    print(
+        "  - feature_dictionary.csv"
+    )
+
+    print(
+        "  - FEATURE_ENGINEERING_METHODOLOGY.md"
+    )
+
     print()
 
 
@@ -1125,42 +1521,79 @@ def print_final_summary(df):
     print("=" * 70)
     print()
 
-    print(f"Final properties: {len(df):,}")
-    print(f"Unique properties: {df['zpid'].nunique():,}")
+    print(
+        f"Final properties: "
+        f"{len(df):,}"
+    )
+
+    print(
+        f"Unique properties: "
+        f"{df['zpid'].nunique():,}"
+    )
+
+    zestimate_coverage = (
+        df["zestimate"]
+        .notna()
+        .mean()
+        * 100
+    )
+
+    opportunity_count = (
+        df["opportunity_status"]
+        .eq("Potential Opportunity")
+        .sum()
+    )
+
     print(
         f"Zestimate coverage: "
-        f"{df['zestimate'].notna().mean() * 100:.2f}%"
+        f"{zestimate_coverage:.2f}%"
     )
 
     print(
         f"Potential opportunities: "
-        f"{(
-            df['opportunity_status']
-            == 'Potential Opportunity'
-        ).sum():,}"
+        f"{opportunity_count:,}"
     )
 
     print()
+
     print("ML predictors:")
+
     for predictor in ML_PREDICTORS:
-        print(f"  - {predictor}")
+        print(
+            f"  - {predictor}"
+        )
 
     print()
-    print(f"ML target:")
-    print(f"  - {TARGET_VARIABLE}")
+
+    print("ML target:")
+
+    print(
+        f"  - {TARGET_VARIABLE}"
+    )
 
     print()
-    print("Business-analysis features:")
+
+    print(
+        "Business-analysis features:"
+    )
+
     for feature in BUSINESS_ANALYSIS_FEATURES:
-        print(f"  - {feature}")
+        print(
+            f"  - {feature}"
+        )
 
     print()
+
     print(
-        "The analysis-ready population was preserved at 810 properties."
+        "The analysis-ready population was "
+        "preserved at 810 properties."
     )
+
     print(
-        "Target-leaking business metrics are separated from ML predictors."
+        "Target-leaking business metrics are "
+        "separated from ML predictors."
     )
+
     print()
 
 
@@ -1170,36 +1603,96 @@ def print_final_summary(df):
 
 def main():
 
-    # Load
+    # --------------------------------------------------------
+    # Load dataset
+    # --------------------------------------------------------
+
     df = load_dataset()
 
+    # --------------------------------------------------------
     # Validate source structure
-    validate_required_columns(df)
+    # --------------------------------------------------------
 
+    validate_required_columns(
+        df
+    )
+
+    # --------------------------------------------------------
     # Normalize numeric fields
-    df = normalize_numeric_columns(df)
+    # --------------------------------------------------------
 
+    df = normalize_numeric_columns(
+        df
+    )
+
+    # --------------------------------------------------------
     # Validate population
-    df = validate_dataset_integrity(df)
+    # --------------------------------------------------------
 
+    df = validate_dataset_integrity(
+        df
+    )
+
+    # --------------------------------------------------------
     # Engineer features
-    df = create_price_per_sqft(df)
-    df = create_log_price(df)
-    df = create_zestimate_features(df)
-    df = create_deal_score(df)
-    df = create_price_segments(df)
-    df = create_zip_features(df)
-    df = create_price_change_flag(df)
+    # --------------------------------------------------------
 
+    df = create_price_per_sqft(
+        df
+    )
+
+    df = create_log_price(
+        df
+    )
+
+    df = create_zestimate_features(
+        df
+    )
+
+    df = create_deal_score(
+        df
+    )
+
+    df = create_price_segments(
+        df
+    )
+
+    df = create_zip_features(
+        df
+    )
+
+    df = create_price_change_flag(
+        df
+    )
+
+    # --------------------------------------------------------
     # Final validation
-    df = validate_engineered_features(df)
+    # --------------------------------------------------------
 
+    df = validate_engineered_features(
+        df
+    )
+
+    # --------------------------------------------------------
     # Documentation
-    feature_summary = create_feature_summary(df)
-    feature_dictionary = create_feature_dictionary()
-    methodology = create_methodology_document(df)
+    # --------------------------------------------------------
 
+    feature_summary = (
+        create_feature_summary(df)
+    )
+
+    feature_dictionary = (
+        create_feature_dictionary()
+    )
+
+    methodology = (
+        create_methodology_document(df)
+    )
+
+    # --------------------------------------------------------
     # Save outputs
+    # --------------------------------------------------------
+
     save_reports(
         df,
         feature_summary,
@@ -1207,8 +1700,13 @@ def main():
         methodology,
     )
 
+    # --------------------------------------------------------
     # Final summary
-    print_final_summary(df)
+    # --------------------------------------------------------
+
+    print_final_summary(
+        df
+    )
 
 
 # ============================================================
@@ -1217,4 +1715,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
