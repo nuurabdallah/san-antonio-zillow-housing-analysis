@@ -1,0 +1,7 @@
+model,feature,importance,importance_source
+Tuned Gradient Boosting,taxAssessedValue,0.7956430469926374,native_tree_importance
+Tuned Gradient Boosting,area,0.169868348469969,native_tree_importance
+Tuned Gradient Boosting,lotAreaSqFt,0.028189258826335436,native_tree_importance
+Tuned Gradient Boosting,daysOnZillow,0.004328740618089643,native_tree_importance
+Tuned Gradient Boosting,baths,0.0014055779666266766,native_tree_importance
+Tuned Gradient Boosting,beds,0.00056502712634194,native_tree_importance

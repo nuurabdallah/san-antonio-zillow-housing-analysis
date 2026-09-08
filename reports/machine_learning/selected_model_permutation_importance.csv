@@ -1,0 +1,7 @@
+model,feature,importance_mean,importance_std
+Tuned Gradient Boosting,beds,0.0009150416056807886,0.0009298636549410473
+Tuned Gradient Boosting,baths,0.0017131546702722027,0.0005841209448437381
+Tuned Gradient Boosting,daysOnZillow,0.0020960246630025753,0.004534577849794395
+Tuned Gradient Boosting,lotAreaSqFt,0.035101567769331696,0.016977655741646634
+Tuned Gradient Boosting,area,0.17223044800331364,0.0518103470725221
+Tuned Gradient Boosting,taxAssessedValue,0.9215729443638295,0.11719139717085875
