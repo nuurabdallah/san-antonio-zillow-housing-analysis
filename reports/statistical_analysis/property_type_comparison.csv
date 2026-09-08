@@ -1,0 +1,2 @@
+number_of_property_type_groups,total_n,levene_statistic,levene_p_value,levene_result,anova_f_statistic,anova_p_value,anova_result,eta_squared,eta_squared_interpretation,kruskal_h_statistic,kruskal_p_value,kruskal_result,epsilon_squared,epsilon_squared_interpretation
+5,810,1.4778836554528998,0.2069548365461895,Not Statistically Significant,10.570293585924215,2.375399522205108e-08,Statistically Significant,0.04990217607094577,Small,18.26018037458927,0.0010976541513325019,Statistically Significant,0.017714509782098473,Small

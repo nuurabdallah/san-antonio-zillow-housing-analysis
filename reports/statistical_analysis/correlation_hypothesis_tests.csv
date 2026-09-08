@@ -1,0 +1,7 @@
+variable,dependent_variable,n,pearson_r,pearson_p_value,pearson_result,spearman_rho,spearman_p_value,spearman_result
+area,logPrice,810,0.71887010795904,9.7181577490417e-130,Statistically Significant,0.7812939309786872,1.431854580965934e-167,Statistically Significant
+beds,logPrice,810,0.45028417145692734,1.0850135015838719e-41,Statistically Significant,0.44963626141724156,1.4599090188793432e-41,Statistically Significant
+baths,logPrice,810,0.6831492145148236,2.050436115883888e-112,Statistically Significant,0.6141696589265856,3.75435831651566e-85,Statistically Significant
+lotAreaSqFt,logPrice,792,0.36048026105933234,1.0310006061411664e-25,Statistically Significant,0.49280991146898206,1.0785676785958511e-49,Statistically Significant
+taxAssessedValue,logPrice,742,0.7360745204146948,1.5422141007417177e-127,Statistically Significant,0.8969689777095443,1.565690510869943e-264,Statistically Significant
+daysOnZillow,logPrice,808,0.03408152015077861,0.3332641024943023,Not Statistically Significant,0.008422371495155224,0.8110727179571222,Not Statistically Significant

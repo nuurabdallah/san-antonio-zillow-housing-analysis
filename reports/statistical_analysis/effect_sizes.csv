@@ -1,0 +1,6 @@
+analysis,effect_measure,effect_size,interpretation
+3 Bedrooms vs 4+ Bedrooms,Cohen's d,-0.8347649223215158,Large
+Property Type,Eta squared,0.04990217607094577,Small
+Property Type,Epsilon squared,0.017714509782098473,Small
+Sufficient-Sample ZIP Codes,Eta squared,0.529000601713823,Large
+Sufficient-Sample ZIP Codes,Epsilon squared,0.5078428668439375,Large

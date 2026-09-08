@@ -1,0 +1,2 @@
+minimum_zip_sample_size,number_of_sufficient_sample_zips,total_n,levene_statistic,levene_p_value,levene_result,anova_f_statistic,anova_p_value,anova_result,eta_squared,eta_squared_interpretation,kruskal_h_statistic,kruskal_p_value,kruskal_result,epsilon_squared,epsilon_squared_interpretation
+10,31,691,2.469826596593639,2.8697610851250065e-05,Statistically Significant,24.70918918378937,4.974107160576428e-88,Statistically Significant,0.529000601713823,Large,365.17629211699875,2.868255438148753e-59,Statistically Significant,0.5078428668439375,Large
