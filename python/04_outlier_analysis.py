@@ -16,10 +16,7 @@ OUTPUT_DIR = Path(
     "reports/outliers"
 )
 
-# Variables selected for outlier analysis.
-#
-# These correspond to important housing-market and modeling
-# variables available in the analysis-ready dataset.
+# Variables included in outlier analysis.
 
 OUTLIER_VARIABLES = [
     "price",
@@ -33,9 +30,14 @@ OUTLIER_VARIABLES = [
     "logPrice"
 ]
 
-# Number of observations to display/save at each extreme.
+# Number of extreme observations saved per variable.
 
 EXTREME_N = 10
+
+# Minimum number of valid observations required before
+# calculating property-type-specific IQR boundaries.
+
+MIN_GROUP_SIZE = 10
 
 
 # ============================================================
@@ -44,7 +46,7 @@ EXTREME_N = 10
 
 def load_dataset():
     """
-    Load the analysis-ready dataset.
+    Load the analysis-ready Zillow dataset.
     """
 
     if not INPUT_FILE.exists():
@@ -84,8 +86,10 @@ def load_dataset():
 
 def prepare_numeric_data(df):
     """
-    Convert selected variables to numeric values where
-    necessary without modifying the source dataset.
+    Create an analysis copy and convert selected variables
+    to numeric values.
+
+    The original dataframe is not modified.
     """
 
     data = df.copy()
@@ -103,13 +107,62 @@ def prepare_numeric_data(df):
 
 
 # ============================================================
-# IQR OUTLIER ANALYSIS
+# DESCRIPTIVE STATISTICS
+# ============================================================
+
+def create_descriptive_statistics(df):
+    """
+    Create detailed descriptive statistics for variables
+    under investigation.
+    """
+
+    available_columns = [
+        column
+        for column in OUTLIER_VARIABLES
+        if column in df.columns
+    ]
+
+    if not available_columns:
+
+        return pd.DataFrame()
+
+    statistics = (
+        df[available_columns]
+        .describe(
+            percentiles=[
+                0.01,
+                0.05,
+                0.10,
+                0.25,
+                0.50,
+                0.75,
+                0.90,
+                0.95,
+                0.99
+            ]
+        )
+        .transpose()
+    )
+
+    statistics = statistics.reset_index()
+
+    statistics = statistics.rename(
+        columns={
+            "index": "variable"
+        }
+    )
+
+    return statistics
+
+
+# ============================================================
+# MARKET-WIDE IQR OUTLIER ANALYSIS
 # ============================================================
 
 def calculate_iqr_outliers(df):
     """
     Identify observations outside the standard 1.5 × IQR
-    boundaries.
+    boundaries across the entire dataset.
 
     Lower boundary:
         Q1 - 1.5 × IQR
@@ -157,17 +210,11 @@ def calculate_iqr_outliers(df):
             + upper_count
         )
 
-        if len(series) > 0:
-
-            outlier_percentage = (
-                total_outliers
-                / len(series)
-                * 100
-            )
-
-        else:
-
-            outlier_percentage = 0
+        outlier_percentage = (
+            total_outliers
+            / len(series)
+            * 100
+        )
 
         records.append({
             "variable": column,
@@ -191,19 +238,16 @@ def calculate_iqr_outliers(df):
 
 
 # ============================================================
-# Z-SCORE OUTLIER ANALYSIS
+# MARKET-WIDE Z-SCORE ANALYSIS
 # ============================================================
 
 def calculate_zscore_outliers(df):
     """
     Identify observations with absolute z-score >= 3.
 
-    The z-score is calculated as:
+    z = (x - mean) / standard deviation
 
-        z = (x - mean) / standard deviation
-
-    This is used as a screening method rather than an
-    automatic removal rule.
+    Z-score results are used only as a screening method.
     """
 
     records = []
@@ -219,13 +263,14 @@ def calculate_zscore_outliers(df):
             continue
 
         mean_value = series.mean()
+
         std_value = series.std()
 
         if std_value == 0:
 
-            outlier_count = 0
-            positive_count = 0
             negative_count = 0
+            positive_count = 0
+            outlier_count = 0
 
         else:
 
@@ -234,29 +279,23 @@ def calculate_zscore_outliers(df):
                 / std_value
             )
 
-            positive_count = (
-                z_scores > 3
-            ).sum()
-
             negative_count = (
                 z_scores < -3
+            ).sum()
+
+            positive_count = (
+                z_scores > 3
             ).sum()
 
             outlier_count = (
                 z_scores.abs() >= 3
             ).sum()
 
-        if len(series) > 0:
-
-            outlier_percentage = (
-                outlier_count
-                / len(series)
-                * 100
-            )
-
-        else:
-
-            outlier_percentage = 0
+        outlier_percentage = (
+            outlier_count
+            / len(series)
+            * 100
+        )
 
         records.append({
             "variable": column,
@@ -276,52 +315,529 @@ def calculate_zscore_outliers(df):
 
 
 # ============================================================
-# DESCRIPTIVE STATISTICS
+# PROPERTY-TYPE IQR ANALYSIS
 # ============================================================
 
-def create_descriptive_statistics(df):
+def calculate_property_type_iqr(df):
     """
-    Create detailed descriptive statistics for the variables
-    under investigation.
+    Calculate IQR boundaries separately within each
+    property type.
+
+    A property type must have at least MIN_GROUP_SIZE valid
+    observations for a variable before an IQR rule is applied.
+
+    Smaller groups are reported as insufficient sample.
     """
 
-    available_columns = [
-        column
-        for column in OUTLIER_VARIABLES
-        if column in df.columns
-    ]
+    records = []
 
-    if not available_columns:
+    if "homeType" not in df.columns:
 
         return pd.DataFrame()
 
-    statistics = (
-        df[available_columns]
-        .describe(
-            percentiles=[
-                0.01,
-                0.05,
-                0.10,
-                0.25,
-                0.50,
-                0.75,
-                0.90,
-                0.95,
-                0.99
-            ]
+    for property_type, group in df.groupby(
+        "homeType",
+        dropna=False
+    ):
+
+        for variable in OUTLIER_VARIABLES:
+
+            if variable not in group.columns:
+                continue
+
+            series = group[
+                variable
+            ].dropna()
+
+            n_valid = len(series)
+
+            if n_valid < MIN_GROUP_SIZE:
+
+                records.append({
+                    "homeType": property_type,
+                    "variable": variable,
+                    "n_valid": n_valid,
+                    "sample_status": (
+                        "Insufficient Sample"
+                    ),
+                    "q1": np.nan,
+                    "median": (
+                        series.median()
+                        if n_valid > 0
+                        else np.nan
+                    ),
+                    "q3": np.nan,
+                    "iqr": np.nan,
+                    "lower_bound": np.nan,
+                    "upper_bound": np.nan,
+                    "iqr_outlier_count": np.nan,
+                    "outlier_percentage": np.nan
+                })
+
+                continue
+
+            q1 = series.quantile(
+                0.25
+            )
+
+            median = series.quantile(
+                0.50
+            )
+
+            q3 = series.quantile(
+                0.75
+            )
+
+            iqr = q3 - q1
+
+            lower_bound = (
+                q1 - 1.5 * iqr
+            )
+
+            upper_bound = (
+                q3 + 1.5 * iqr
+            )
+
+            outlier_count = (
+                (series < lower_bound)
+                |
+                (series > upper_bound)
+            ).sum()
+
+            outlier_percentage = (
+                outlier_count
+                / n_valid
+                * 100
+            )
+
+            records.append({
+                "homeType": property_type,
+                "variable": variable,
+                "n_valid": n_valid,
+                "sample_status": (
+                    "Sufficient Sample"
+                ),
+                "q1": q1,
+                "median": median,
+                "q3": q3,
+                "iqr": iqr,
+                "lower_bound": lower_bound,
+                "upper_bound": upper_bound,
+                "iqr_outlier_count": (
+                    outlier_count
+                ),
+                "outlier_percentage": round(
+                    outlier_percentage,
+                    2
+                )
+            })
+
+    return pd.DataFrame(records)
+
+
+# ============================================================
+# PROPERTY-TYPE OUTLIER SUMMARY
+# ============================================================
+
+def create_property_type_summary(df):
+    """
+    Create a property-type descriptive summary.
+
+    This provides context for interpreting extreme values.
+    """
+
+    if "homeType" not in df.columns:
+
+        return pd.DataFrame()
+
+    variables = [
+        "price",
+        "area",
+        "pricePerSqFt",
+        "lotAreaSqFt",
+        "taxAssessedValue"
+    ]
+
+    variables = [
+        variable
+        for variable in variables
+        if variable in df.columns
+    ]
+
+    records = []
+
+    for property_type, group in df.groupby(
+        "homeType",
+        dropna=False
+    ):
+
+        for variable in variables:
+
+            series = group[
+                variable
+            ].dropna()
+
+            if series.empty:
+                continue
+
+            records.append({
+                "homeType": property_type,
+                "variable": variable,
+                "n": len(series),
+                "mean": series.mean(),
+                "median": series.median(),
+                "min": series.min(),
+                "max": series.max(),
+                "std": series.std()
+            })
+
+    return pd.DataFrame(records)
+
+
+# ============================================================
+# RECORD-LEVEL MARKET-WIDE FLAGS
+# ============================================================
+
+def create_record_level_market_flags(df):
+    """
+    Create record-level market-wide IQR flags.
+
+    The original dataset is not modified.
+    """
+
+    audit = df.copy()
+
+    flag_columns = []
+
+    for variable in OUTLIER_VARIABLES:
+
+        if variable not in audit.columns:
+            continue
+
+        series = pd.to_numeric(
+            audit[variable],
+            errors="coerce"
         )
-        .transpose()
+
+        valid = series.dropna()
+
+        if valid.empty:
+            continue
+
+        q1 = valid.quantile(
+            0.25
+        )
+
+        q3 = valid.quantile(
+            0.75
+        )
+
+        iqr = q3 - q1
+
+        lower_bound = (
+            q1 - 1.5 * iqr
+        )
+
+        upper_bound = (
+            q3 + 1.5 * iqr
+        )
+
+        flag_name = (
+            f"{variable}_market_iqr_outlier"
+        )
+
+        audit[flag_name] = (
+            series.lt(lower_bound)
+            |
+            series.gt(upper_bound)
+        )
+
+        audit[flag_name] = (
+            audit[flag_name]
+            .fillna(False)
+        )
+
+        flag_columns.append(
+            flag_name
+        )
+
+    if flag_columns:
+
+        audit[
+            "market_iqr_flag_count"
+        ] = audit[
+            flag_columns
+        ].sum(axis=1)
+
+        audit[
+            "has_market_iqr_outlier"
+        ] = (
+            audit[
+                "market_iqr_flag_count"
+            ] > 0
+        )
+
+    else:
+
+        audit[
+            "market_iqr_flag_count"
+        ] = 0
+
+        audit[
+            "has_market_iqr_outlier"
+        ] = False
+
+    return audit
+
+
+# ============================================================
+# RECORD-LEVEL PROPERTY-TYPE FLAGS
+# ============================================================
+
+def create_record_level_property_type_flags(
+    df,
+    property_type_iqr
+):
+    """
+    Apply property-type-specific IQR boundaries to each
+    individual property.
+
+    Groups with fewer than MIN_GROUP_SIZE observations
+    are not flagged.
+
+    Returns a separate audit dataframe.
+    """
+
+    audit = df.copy()
+
+    if "homeType" not in audit.columns:
+
+        audit[
+            "property_type_iqr_flag_count"
+        ] = 0
+
+        audit[
+            "has_property_type_iqr_outlier"
+        ] = False
+
+        return audit
+
+    flag_columns = []
+
+    sufficient_rules = property_type_iqr[
+        property_type_iqr[
+            "sample_status"
+        ] == "Sufficient Sample"
+    ].copy()
+
+    for _, rule in sufficient_rules.iterrows():
+
+        property_type = rule[
+            "homeType"
+        ]
+
+        variable = rule[
+            "variable"
+        ]
+
+        if variable not in audit.columns:
+            continue
+
+        column_name = (
+            f"{variable}_property_type_iqr_outlier"
+        )
+
+        if column_name not in audit.columns:
+
+            audit[column_name] = False
+
+        mask = (
+            audit["homeType"]
+            == property_type
+        )
+
+        values = pd.to_numeric(
+            audit[variable],
+            errors="coerce"
+        )
+
+        outlier_mask = (
+            mask
+            &
+            (
+                values.lt(
+                    rule["lower_bound"]
+                )
+                |
+                values.gt(
+                    rule["upper_bound"]
+                )
+            )
+        )
+
+        audit.loc[
+            outlier_mask,
+            column_name
+        ] = True
+
+        if column_name not in flag_columns:
+
+            flag_columns.append(
+                column_name
+            )
+
+    if flag_columns:
+
+        audit[
+            "property_type_iqr_flag_count"
+        ] = audit[
+            flag_columns
+        ].sum(axis=1)
+
+        audit[
+            "has_property_type_iqr_outlier"
+        ] = (
+            audit[
+                "property_type_iqr_flag_count"
+            ] > 0
+        )
+
+    else:
+
+        audit[
+            "property_type_iqr_flag_count"
+        ] = 0
+
+        audit[
+            "has_property_type_iqr_outlier"
+        ] = False
+
+    return audit
+
+
+# ============================================================
+# COMPARISON OF MARKET VS PROPERTY-TYPE FLAGS
+# ============================================================
+
+def create_outlier_comparison(audit):
+    """
+    Compare market-wide and property-type-specific
+    outlier classifications.
+    """
+
+    market_flag = (
+        audit[
+            "has_market_iqr_outlier"
+        ]
     )
 
-    statistics = statistics.reset_index()
-
-    statistics = statistics.rename(
-        columns={
-            "index": "variable"
-        }
+    property_flag = (
+        audit[
+            "has_property_type_iqr_outlier"
+        ]
     )
 
-    return statistics
+    conditions = [
+        (~market_flag) & (~property_flag),
+        market_flag & (~property_flag),
+        (~market_flag) & property_flag,
+        market_flag & property_flag
+    ]
+
+    choices = [
+        "No IQR Flag",
+        "Market-Wide Only",
+        "Property-Type Only",
+        "Both Market-Wide and Property-Type"
+    ]
+
+    audit[
+        "outlier_comparison"
+    ] = np.select(
+        conditions,
+        choices,
+        default="Unknown"
+    )
+
+    summary = (
+        audit[
+            "outlier_comparison"
+        ]
+        .value_counts()
+        .rename_axis(
+            "classification"
+        )
+        .reset_index(
+            name="property_count"
+        )
+    )
+
+    summary[
+        "percentage_of_dataset"
+    ] = (
+        summary["property_count"]
+        / len(audit)
+        * 100
+    ).round(2)
+
+    return audit, summary
+
+
+# ============================================================
+# MULTI-OUTLIER SUMMARY
+# ============================================================
+
+def create_outlier_intersection_summary(
+    audit
+):
+    """
+    Summarize the number of market-wide IQR flags per
+    property.
+    """
+
+    if (
+        "market_iqr_flag_count"
+        not in audit.columns
+    ):
+
+        return pd.DataFrame()
+
+    counts = (
+        audit[
+            "market_iqr_flag_count"
+        ]
+        .value_counts()
+        .sort_index()
+    )
+
+    records = []
+
+    total = len(audit)
+
+    for flag_count, property_count in (
+        counts.items()
+    ):
+
+        percentage = (
+            property_count
+            / total
+            * 100
+        )
+
+        records.append({
+            "iqr_flag_count": int(
+                flag_count
+            ),
+            "property_count": int(
+                property_count
+            ),
+            "percentage_of_dataset": round(
+                percentage,
+                2
+            )
+        })
+
+    return pd.DataFrame(records)
 
 
 # ============================================================
@@ -330,11 +846,8 @@ def create_descriptive_statistics(df):
 
 def create_extreme_observation_tables(df):
     """
-    Create the highest and lowest observations for each
-    variable.
-
-    Each observation retains identifying and contextual
-    information when those fields are available.
+    Save the highest and lowest observations for every
+    outlier-analysis variable.
     """
 
     tables = {}
@@ -394,19 +907,11 @@ def create_extreme_observation_tables(df):
         )
 
         highest = highest[
-            [
-                column
-                for column in context_columns
-                if column in highest.columns
-            ]
+            context_columns
         ]
 
         lowest = lowest[
-            [
-                column
-                for column in context_columns
-                if column in lowest.columns
-            ]
+            context_columns
         ]
 
         tables[
@@ -421,286 +926,13 @@ def create_extreme_observation_tables(df):
 
 
 # ============================================================
-# FLAG IQR OUTLIERS AT RECORD LEVEL
-# ============================================================
-
-def create_record_level_iqr_flags(df):
-    """
-    Create an audit table showing which records fall outside
-    the IQR boundaries.
-
-    The original dataset is not modified.
-
-    A separate audit dataframe is returned.
-    """
-
-    audit = df.copy()
-
-    flag_columns = []
-
-    for variable in OUTLIER_VARIABLES:
-
-        if variable not in audit.columns:
-            continue
-
-        series = pd.to_numeric(
-            audit[variable],
-            errors="coerce"
-        )
-
-        valid = series.dropna()
-
-        if valid.empty:
-            continue
-
-        q1 = valid.quantile(
-            0.25
-        )
-
-        q3 = valid.quantile(
-            0.75
-        )
-
-        iqr = q3 - q1
-
-        lower_bound = (
-            q1 - 1.5 * iqr
-        )
-
-        upper_bound = (
-            q3 + 1.5 * iqr
-        )
-
-        flag_name = (
-            f"{variable}_iqr_outlier"
-        )
-
-        audit[flag_name] = (
-            series.lt(lower_bound)
-            | series.gt(upper_bound)
-        )
-
-        audit[flag_name] = (
-            audit[flag_name]
-            .fillna(False)
-        )
-
-        flag_columns.append(
-            flag_name
-        )
-
-    if flag_columns:
-
-        audit[
-            "total_iqr_outlier_flags"
-        ] = audit[
-            flag_columns
-        ].sum(axis=1)
-
-        audit[
-            "has_iqr_outlier"
-        ] = (
-            audit[
-                "total_iqr_outlier_flags"
-            ] > 0
-        )
-
-    else:
-
-        audit[
-            "total_iqr_outlier_flags"
-        ] = 0
-
-        audit[
-            "has_iqr_outlier"
-        ] = False
-
-    return audit
-
-
-# ============================================================
-# PROPERTY-TYPE OUTLIER SUMMARY
-# ============================================================
-
-def create_property_type_summary(df):
-    """
-    Compare descriptive statistics across property types.
-
-    This is useful because an observation may appear extreme
-    in the full market but be normal within its property type.
-    """
-
-    if "homeType" not in df.columns:
-
-        return pd.DataFrame()
-
-    variables = [
-        "price",
-        "area",
-        "pricePerSqFt",
-        "lotAreaSqFt",
-        "taxAssessedValue"
-    ]
-
-    variables = [
-        variable
-        for variable in variables
-        if variable in df.columns
-    ]
-
-    records = []
-
-    for property_type, group in df.groupby(
-        "homeType",
-        dropna=False
-    ):
-
-        for variable in variables:
-
-            series = group[
-                variable
-            ].dropna()
-
-            if series.empty:
-                continue
-
-            q1 = series.quantile(
-                0.25
-            )
-
-            q3 = series.quantile(
-                0.75
-            )
-
-            iqr = q3 - q1
-
-            lower_bound = (
-                q1 - 1.5 * iqr
-            )
-
-            upper_bound = (
-                q3 + 1.5 * iqr
-            )
-
-            outlier_count = (
-                (series < lower_bound)
-                |
-                (series > upper_bound)
-            ).sum()
-
-            if len(series) > 0:
-
-                outlier_percentage = (
-                    outlier_count
-                    / len(series)
-                    * 100
-                )
-
-            else:
-
-                outlier_percentage = 0
-
-            records.append({
-                "homeType": property_type,
-                "variable": variable,
-                "n": len(series),
-                "mean": series.mean(),
-                "median": series.median(),
-                "q1": q1,
-                "q3": q3,
-                "iqr": iqr,
-                "lower_bound": lower_bound,
-                "upper_bound": upper_bound,
-                "iqr_outlier_count": outlier_count,
-                "iqr_outlier_percentage": round(
-                    outlier_percentage,
-                    2
-                )
-            })
-
-    return pd.DataFrame(records)
-
-
-# ============================================================
-# OUTLIER INTERSECTION SUMMARY
-# ============================================================
-
-def create_outlier_intersection_summary(
-    record_level_audit
-):
-    """
-    Summarize how many properties are flagged by multiple
-    outlier variables.
-
-    Multiple flags can indicate observations that deserve
-    closer investigation.
-    """
-
-    if (
-        "total_iqr_outlier_flags"
-        not in record_level_audit.columns
-    ):
-
-        return pd.DataFrame()
-
-    counts = (
-        record_level_audit[
-            "total_iqr_outlier_flags"
-        ]
-        .value_counts()
-        .sort_index()
-    )
-
-    records = []
-
-    total = len(
-        record_level_audit
-    )
-
-    for flag_count, observation_count in (
-        counts.items()
-    ):
-
-        if total > 0:
-
-            percentage = (
-                observation_count
-                / total
-                * 100
-            )
-
-        else:
-
-            percentage = 0
-
-        records.append({
-            "iqr_flag_count": int(
-                flag_count
-            ),
-            "property_count": int(
-                observation_count
-            ),
-            "percentage_of_dataset": round(
-                percentage,
-                2
-            )
-        })
-
-    return pd.DataFrame(records)
-
-
-# ============================================================
-# DATA-QUALITY VS LEGITIMATE-OUTLIER SCREEN
+# DATA-QUALITY VS STATISTICAL OUTLIERS
 # ============================================================
 
 def create_outlier_classification_summary(df):
     """
-    Create a screening summary that distinguishes clearly
-    invalid values from statistically unusual observations.
-
-    This does NOT classify individual properties as erroneous.
-    It documents rules that were already established during
-    data cleaning.
+    Document the difference between invalid values and
+    statistically unusual but potentially legitimate values.
     """
 
     records = []
@@ -716,14 +948,15 @@ def create_outlier_classification_summary(df):
         records.append({
             "variable": "price",
             "screening_rule": (
-                "Price <= $1 is treated as an invalid/"
-                "placeholder value during data cleaning."
+                "Price <= $1 is treated as an "
+                "invalid or placeholder value."
             ),
             "invalid_data_count": int(
                 invalid_price
             ),
             "treatment": (
-                "Removed during Part 2 cleaning."
+                "No such observations remain "
+                "after Part 2 cleaning."
             )
         })
 
@@ -793,13 +1026,14 @@ def create_outlier_classification_summary(df):
     records.append({
         "variable": "statistical_outliers",
         "screening_rule": (
-            "IQR and z-score methods identify unusual "
-            "observations but do not establish that a "
-            "property is erroneous."
+            "IQR and z-score methods identify "
+            "unusual observations."
         ),
         "invalid_data_count": 0,
         "treatment": (
-            "Retained for investigation and modeling."
+            "Statistical outliers are retained unless "
+            "a separate data-quality investigation "
+            "establishes that the observation is invalid."
         )
     })
 
@@ -816,11 +1050,12 @@ def print_key_findings(
     df,
     iqr_summary,
     zscore_summary,
-    property_type_summary,
+    property_type_iqr,
+    comparison_summary,
     intersection_summary
 ):
     """
-    Print the most important outlier findings.
+    Print the most important findings from Part 4.
     """
 
     print("\n" + "=" * 70)
@@ -828,7 +1063,7 @@ def print_key_findings(
     print("=" * 70)
 
     print(
-        "\nNo observations were removed by this analysis."
+        "\nNo observations were removed."
     )
 
     print(
@@ -837,12 +1072,12 @@ def print_key_findings(
     )
 
     print(
-        "\nIQR outlier summary:"
+        "\nMarket-wide IQR outlier summary:"
     )
 
     if not iqr_summary.empty:
 
-        display_columns = [
+        columns = [
             "variable",
             "n_valid",
             "lower_bound",
@@ -853,20 +1088,20 @@ def print_key_findings(
 
         print(
             iqr_summary[
-                display_columns
+                columns
             ].to_string(
                 index=False
             )
         )
 
     print(
-        "\nZ-score outlier summary "
+        "\nMarket-wide z-score outlier summary "
         "(absolute z-score >= 3):"
     )
 
     if not zscore_summary.empty:
 
-        display_columns = [
+        columns = [
             "variable",
             "n_valid",
             "negative_zscore_outliers",
@@ -877,6 +1112,29 @@ def print_key_findings(
 
         print(
             zscore_summary[
+                columns
+            ].to_string(
+                index=False
+            )
+        )
+
+    print(
+        "\nProperty-type-specific IQR analysis:"
+    )
+
+    if not property_type_iqr.empty:
+
+        display_columns = [
+            "homeType",
+            "variable",
+            "n_valid",
+            "sample_status",
+            "iqr_outlier_count",
+            "outlier_percentage"
+        ]
+
+        print(
+            property_type_iqr[
                 display_columns
             ].to_string(
                 index=False
@@ -884,7 +1142,19 @@ def print_key_findings(
         )
 
     print(
-        "\nProperties flagged by multiple IQR rules:"
+        "\nMarket-wide vs property-type IQR comparison:"
+    )
+
+    if not comparison_summary.empty:
+
+        print(
+            comparison_summary.to_string(
+                index=False
+            )
+        )
+
+    print(
+        "\nNumber of market-wide IQR flags per property:"
     )
 
     if not intersection_summary.empty:
@@ -895,14 +1165,13 @@ def print_key_findings(
             )
         )
 
-    if not property_type_summary.empty:
+    if "homeType" in df.columns:
 
         print(
-            "\nProperty types included in "
-            "outlier analysis:"
+            "\nProperty-type sample sizes:"
         )
 
-        property_types = (
+        counts = (
             df["homeType"]
             .value_counts(
                 dropna=False
@@ -910,7 +1179,7 @@ def print_key_findings(
         )
 
         for property_type, count in (
-            property_types.items()
+            counts.items()
         ):
 
             print(
@@ -928,7 +1197,7 @@ def create_methodology_notes():
     Save the methodology used for Part 4.
     """
 
-    notes = """# Outlier Analysis Methodology
+    notes = f"""# Outlier Analysis Methodology
 
 ## Objective
 
@@ -936,8 +1205,8 @@ Part 4 investigates unusually high or low observations
 within the San Antonio Zillow analysis-ready dataset.
 
 The purpose is to identify observations that may require
-investigation and to understand the shape of the housing
-market.
+investigation and to understand the distribution of the
+housing market.
 
 ## Variables
 
@@ -953,7 +1222,7 @@ The following variables are examined:
 - daysOnZillow
 - logPrice
 
-## IQR Method
+## Market-Wide IQR Analysis
 
 The primary statistical screening method is the
 1.5 × IQR rule.
@@ -967,62 +1236,89 @@ Upper boundary:
 Q3 + 1.5 × IQR
 
 Observations outside these boundaries are flagged as
-statistical outliers.
+market-wide statistical outliers.
 
-## Z-Score Method
+## Z-Score Analysis
 
 A secondary screening method identifies observations with
 an absolute z-score of at least 3.
 
-This method provides another perspective on extreme values,
-particularly for approximately symmetric variables.
+This provides another perspective on extreme observations.
 
-Because housing variables such as price and tax-assessed
-value are often highly skewed, z-score results are not
-interpreted as proof of erroneous data.
+Because housing variables such as price, lot area, and
+tax-assessed value can be highly skewed, z-score results
+are treated as screening evidence rather than proof of
+invalid data.
 
-## Property-Type Context
+## Property-Type-Specific IQR Analysis
 
-Outlier behavior is also examined by property type.
+Outlier boundaries are also calculated separately within
+each property type.
 
-This is important because a value that is extreme across the
-entire market may be reasonable within a particular property
-category.
+A minimum of {MIN_GROUP_SIZE} valid observations is required
+before a property-type/variable combination receives an
+IQR-based outlier classification.
+
+Groups below this threshold are labeled:
+
+"Insufficient Sample"
+
+This prevents very small groups from producing unreliable
+statistical classifications.
+
+## Why Property Type Matters
+
+A property that is extreme relative to the entire market
+may be normal within its property category.
+
+For example, luxury single-family properties can naturally
+have substantially higher prices and living areas than the
+broader market.
+
+Property-type-specific analysis therefore provides additional
+context for interpreting market-wide outliers.
 
 ## Legitimate Market Outliers
 
-High-priced properties, large properties, unusual price-per-
-square-foot values, and other extreme observations are not
-automatically removed.
+Extreme properties are not automatically removed.
 
-Real estate markets naturally contain legitimate extreme
-properties.
+Real estate markets naturally contain legitimate observations
+at both ends of the distribution.
+
+An expensive property, large property, or unusually high
+price-per-square-foot property may represent real market
+behavior.
 
 ## Data-Quality Rules
 
-Part 2 established explicit data-cleaning rules for clearly
-invalid values.
+Part 2 established explicit rules for clearly invalid values.
 
-For example, listing prices of $1 or less were treated as
-invalid or placeholder values.
+For example:
 
-Those rules are separate from statistical outlier detection.
+- Listing prices <= $1 were treated as invalid or
+  placeholder values.
+- Living area must be greater than zero.
+- Bedroom and bathroom counts cannot be negative.
+
+These rules are separate from statistical outlier detection.
 
 ## Modeling
 
-Outlier analysis does not automatically determine which
-observations should be excluded from machine learning.
+Outlier analysis does not determine the final machine-learning
+training set by itself.
 
-Potential influence on regression and machine-learning models
-is investigated later through residual diagnostics, influence
-analysis, and model error analysis.
+Potential model influence is investigated later through
+residual diagnostics, influence measures, cross-validation,
+and model error analysis.
 
 ## Dataset Integrity
 
 This script does not modify the analysis-ready dataset.
 
-All outlier flags and reports are stored separately so that
-the original analytical dataset remains reproducible.
+All outlier flags and reports are stored separately.
+
+This preserves reproducibility and allows legitimate extreme
+properties to remain available for downstream analysis.
 """
 
     OUTPUT_DIR.mkdir(
@@ -1054,11 +1350,13 @@ def save_reports(
     descriptive_statistics,
     iqr_summary,
     zscore_summary,
-    extreme_tables,
-    record_level_audit,
+    property_type_iqr,
     property_type_summary,
+    comparison_summary,
     intersection_summary,
-    classification_summary
+    classification_summary,
+    record_level_audit,
+    extreme_tables
 ):
     """
     Save all Part 4 reports.
@@ -1087,9 +1385,21 @@ def save_reports(
         index=False
     )
 
+    property_type_iqr.to_csv(
+        OUTPUT_DIR
+        / "property_type_iqr_outlier_summary.csv",
+        index=False
+    )
+
     property_type_summary.to_csv(
         OUTPUT_DIR
         / "property_type_outlier_summary.csv",
+        index=False
+    )
+
+    comparison_summary.to_csv(
+        OUTPUT_DIR
+        / "market_vs_property_type_outliers.csv",
         index=False
     )
 
@@ -1107,7 +1417,7 @@ def save_reports(
 
     record_level_audit.to_csv(
         OUTPUT_DIR
-        / "record_level_iqr_flags.csv",
+        / "record_level_outlier_flags.csv",
         index=False
     )
 
@@ -1129,20 +1439,22 @@ def save_reports(
         f"\nOutput directory: {OUTPUT_DIR}"
     )
 
-    print(
-        "\nCore reports created:"
-    )
-
     core_reports = [
         "descriptive_statistics.csv",
         "iqr_outlier_summary.csv",
         "zscore_outlier_summary.csv",
+        "property_type_iqr_outlier_summary.csv",
         "property_type_outlier_summary.csv",
+        "market_vs_property_type_outliers.csv",
         "outlier_intersection_summary.csv",
         "outlier_classification_summary.csv",
-        "record_level_iqr_flags.csv",
+        "record_level_outlier_flags.csv",
         "OUTLIER_METHODOLOGY.md"
     ]
+
+    print(
+        "\nCore reports created:"
+    )
 
     for filename in core_reports:
 
@@ -1174,13 +1486,13 @@ def main():
     print("=" * 70)
 
     # --------------------------------------------------------
-    # Load
+    # Load dataset
     # --------------------------------------------------------
 
     df = load_dataset()
 
     # --------------------------------------------------------
-    # Prepare numeric analysis copy
+    # Create analysis copy
     # --------------------------------------------------------
 
     analysis_df = prepare_numeric_data(
@@ -1198,7 +1510,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # IQR analysis
+    # Market-wide IQR analysis
     # --------------------------------------------------------
 
     iqr_summary = (
@@ -1208,12 +1520,74 @@ def main():
     )
 
     # --------------------------------------------------------
-    # Z-score analysis
+    # Market-wide z-score analysis
     # --------------------------------------------------------
 
     zscore_summary = (
         calculate_zscore_outliers(
             analysis_df
+        )
+    )
+
+    # --------------------------------------------------------
+    # Property-type-specific IQR analysis
+    # --------------------------------------------------------
+
+    property_type_iqr = (
+        calculate_property_type_iqr(
+            analysis_df
+        )
+    )
+
+    # --------------------------------------------------------
+    # Property-type descriptive summary
+    # --------------------------------------------------------
+
+    property_type_summary = (
+        create_property_type_summary(
+            analysis_df
+        )
+    )
+
+    # --------------------------------------------------------
+    # Record-level market-wide flags
+    # --------------------------------------------------------
+
+    record_level_audit = (
+        create_record_level_market_flags(
+            analysis_df
+        )
+    )
+
+    # --------------------------------------------------------
+    # Record-level property-type flags
+    # --------------------------------------------------------
+
+    record_level_audit = (
+        create_record_level_property_type_flags(
+            record_level_audit,
+            property_type_iqr
+        )
+    )
+
+    # --------------------------------------------------------
+    # Compare market-wide vs property-type classifications
+    # --------------------------------------------------------
+
+    (
+        record_level_audit,
+        comparison_summary
+    ) = create_outlier_comparison(
+        record_level_audit
+    )
+
+    # --------------------------------------------------------
+    # Multiple market-wide IQR flags
+    # --------------------------------------------------------
+
+    intersection_summary = (
+        create_outlier_intersection_summary(
+            record_level_audit
         )
     )
 
@@ -1224,36 +1598,6 @@ def main():
     extreme_tables = (
         create_extreme_observation_tables(
             analysis_df
-        )
-    )
-
-    # --------------------------------------------------------
-    # Record-level IQR audit
-    # --------------------------------------------------------
-
-    record_level_audit = (
-        create_record_level_iqr_flags(
-            analysis_df
-        )
-    )
-
-    # --------------------------------------------------------
-    # Property-type analysis
-    # --------------------------------------------------------
-
-    property_type_summary = (
-        create_property_type_summary(
-            analysis_df
-        )
-    )
-
-    # --------------------------------------------------------
-    # Multiple-outlier intersection
-    # --------------------------------------------------------
-
-    intersection_summary = (
-        create_outlier_intersection_summary(
-            record_level_audit
         )
     )
 
@@ -1275,7 +1619,8 @@ def main():
         analysis_df,
         iqr_summary,
         zscore_summary,
-        property_type_summary,
+        property_type_iqr,
+        comparison_summary,
         intersection_summary
     )
 
@@ -1287,11 +1632,13 @@ def main():
         descriptive_statistics,
         iqr_summary,
         zscore_summary,
-        extreme_tables,
-        record_level_audit,
+        property_type_iqr,
         property_type_summary,
+        comparison_summary,
         intersection_summary,
-        classification_summary
+        classification_summary,
+        record_level_audit,
+        extreme_tables
     )
 
     # --------------------------------------------------------
@@ -1320,6 +1667,11 @@ def main():
         "not automatically removed."
     )
 
+    print(
+        "\nProperty-type-specific analysis used a "
+        f"minimum sample size of {MIN_GROUP_SIZE}."
+    )
+
 
 # ============================================================
 # SCRIPT ENTRY POINT
@@ -1327,3 +1679,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
