@@ -1,0 +1,8 @@
+field,missing_count,missing_percentage,complete_count,complete_percentage
+area,0,0.0,810,100.0
+beds,0,0.0,810,100.0
+baths,0,0.0,810,100.0
+lotAreaSqFt,18,2.22,792,97.78
+taxAssessedValue,68,8.4,742,91.6
+daysOnZillow,2,0.25,808,99.75
+logPrice,0,0.0,810,100.0

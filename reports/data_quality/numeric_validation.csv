@@ -1,0 +1,8 @@
+field,invalid_count,rule
+unformattedPrice,0,Value must be greater than $1
+area,0,Value must be greater than 0
+beds,0,Value cannot be negative
+baths,0,Value cannot be negative
+daysOnZillow,0,Value cannot be negative
+pricePerSqFt,0,Value must be greater than 0
+logPrice,0,Value must be finite
