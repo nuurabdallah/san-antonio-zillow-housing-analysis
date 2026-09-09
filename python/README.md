@@ -27,8 +27,8 @@ The scripts are organized in the order in which the analytical workflow was perf
         ↓
 09 Machine Learning
         ↓
-10 Model Evaluation
-
+10 Model Evaluation 
+```
 
 ## Scripts
 
