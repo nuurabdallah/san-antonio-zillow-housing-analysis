@@ -1,4 +1,34 @@
+# Python Analysis Workflow
+
+This directory contains the Python workflow used for the San Antonio Zillow Housing Analysis project.
+
+The scripts are organized in the order in which the analytical workflow was performed, from data collection and preparation through statistical analysis, visualization, machine learning, and model evaluation.
+
  
+
+## Workflow
+
+```text
+01 Data Collection
+        ↓
+02 Data Cleaning
+        ↓
+03 Data Quality Analysis
+        ↓
+04 Outlier Analysis
+        ↓
+05 Feature Engineering
+        ↓
+06 Exploratory Data Analysis
+        ↓
+07 Statistical Analysis
+        ↓
+08 Visualization
+        ↓
+09 Machine Learning
+        ↓
+10 Model Evaluation
+
 
 ## Scripts
 
