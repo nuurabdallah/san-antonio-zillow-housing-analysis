@@ -1,4 +1,4 @@
----
+ 
 
 ## Scripts
 
@@ -14,7 +14,7 @@ Key responsibilities include:
 - Removing duplicate properties
 - Saving the raw collected data
 
----
+ 
 
 ### 02 — Data Cleaning
 
@@ -29,7 +29,7 @@ Key responsibilities include:
 - Validating duplicate records
 - Creating initial analytical fields such as price per square foot and log-transformed price
 
----
+ 
 
 ### 03 — Data Quality Analysis
 
@@ -50,7 +50,7 @@ The audit evaluates:
 
 Missing values are evaluated and documented rather than automatically imputed.
 
----
+ 
 
 ### 04 — Outlier Analysis
 
@@ -67,7 +67,7 @@ Outlier analysis includes:
 
 Outliers are investigated and documented rather than automatically removed.
 
----
+ 
 
 ### 05 — Feature Engineering
 
@@ -88,7 +88,7 @@ Key engineered variables include:
 
 Feature engineering also prepares the leakage-safe predictor set used for machine learning.
 
----
+ 
 
 ### 06 — Exploratory Data Analysis
 
@@ -109,7 +109,7 @@ The analysis examines:
 
 ZIP-code analyses distinguish sufficiently sampled ZIP codes from sparse ZIP codes.
 
----
+ 
 
 ### 07 — Statistical Analysis
 
@@ -134,7 +134,7 @@ Methods include:
 
 The statistical models use the leakage-safe predictor framework established for the project.
 
----
+ 
 
 ### 08 — Visualization
 
@@ -153,7 +153,7 @@ Visualizations include:
 - Potential opportunities by ZIP code
 - Bedroom-group comparisons
 
----
+ 
 
 ### 09 — Machine Learning
 
@@ -184,7 +184,7 @@ The final model uses:
 
 Zestimate-derived variables and other price-derived variables are excluded from the predictive model to prevent target leakage.
 
----
+ 
 
 ### 10 — Model Evaluation
 
@@ -206,7 +206,7 @@ Evaluation includes:
 
 The evaluation focuses not only on overall predictive performance but also on where the model performs well and where systematic prediction errors occur.
 
----
+ 
 
 ## Reproducibility
 
@@ -229,7 +229,7 @@ The analytical dataset contains **810 properties with 810 unique Zillow property
 
 Machine-learning analysis uses the complete cases available for the six approved predictors and the `logPrice` target. Missing analytical values are not artificially replaced simply to increase the modeling population.
 
----
+ 
 
 ## Key Methodological Principles
 
