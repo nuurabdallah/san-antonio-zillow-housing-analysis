@@ -233,6 +233,13 @@ The SQL layer includes:
 
 The final SQL validation reconciles the major analytical views back to the authoritative 810-property dataset.
 
+The complete PostgreSQL workflow is available in the
+[SQL directory](sql/).
+
+The workflow progresses from database schema creation and staging through market analysis, ZIP analysis, Zestimate analysis, advanced rankings, analytical views, and final validation.
+
+See the [SQL workflow documentation](sql/README.md).
+
 ---
 
 # Exploratory Data Analysis
@@ -254,17 +261,11 @@ Exploratory analysis examined:
 - Zestimate relationships
 - Potential pricing opportunities
 
-The EDA workflow is available in:
+The EDA workflow is available in the
+[EDA notebook](notebooks/01_eda.ipynb).
 
-```text
-notebooks/01_eda.ipynb
-```
-
-and the corresponding Python workflow is available in:
-
-```text
-python/06_exploratory_data_analysis.py
-```
+The corresponding Python workflow is available in
+[06_exploratory_data_analysis.py](python/06_exploratory_data_analysis.py).
 
 ---
 
@@ -290,12 +291,11 @@ The analysis included:
 - Regression diagnostics
 
 Statistical relationships are interpreted as associations rather than causal effects.
+The statistical analysis workflow is documented in
+[07_statistical_analysis.py](python/07_statistical_analysis.py).
 
-Detailed statistical outputs are available in:
-
-```text
-reports/statistical_analysis/
-```
+Supporting statistical outputs are available in
+[reports/statistical_analysis](reports/statistical_analysis/).
 
 ---
 
@@ -342,6 +342,15 @@ The following variables were excluded from the model because they are target-der
 - `opportunity_status`
 
 This separation allows Zestimate opportunity analysis to remain a distinct business-analysis component rather than becoming a predictor of the target.
+
+The complete machine learning workflow is available in
+[09_machine_learning.py](python/09_machine_learning.py).
+
+The model evaluation workflow is available in
+[10_model_evaluation.py](python/10_model_evaluation.py).
+
+An interactive version of the modeling workflow is available in the
+[housing price modeling notebook](notebooks/02_housing_price_model.ipynb).
 
 ---
 
@@ -620,7 +629,7 @@ The Zestimate dashboard presents:
 
 ---
 
-## Dashboard 3 — Investment Opportunities
+## Dashboard 3 — Potential Zestimate-Based Opportunities
 
 The opportunity dashboard presents:
 
@@ -632,13 +641,11 @@ The opportunity dashboard presents:
 - Zestimate Gap % vs. Listing Price
 - Price/Sq Ft analysis
 
-![Investment Opportunities](images/dashboard_3_opportunities.png)
+![Potential Zestimate-Based Opportunities](images/dashboard_3_opportunities.png)
 
-The Tableau workbook is available at:
+The completed Tableau workbook is available here:
 
-```text
-tableau/San_Antonio_Zillow_Dashboard.twbx
-```
+[San Antonio Zillow Dashboard](tableau/San_Antonio_Zillow_Dashboard.twbx)
 
 ---
 
@@ -850,6 +857,12 @@ The Python scripts are numbered according to the analytical sequence:
 09 Machine Learning
 10 Model Evaluation
 ```
+The complete Python workflow is available in the
+[Python directory](python/).
+
+The pipeline progresses from data collection and cleaning through data quality analysis, outlier 
+analysis, feature engineering, EDA, statistical analysis, visualization, machine learning, and 
+model evaluation.
 
 ### SQL Workflow
 
