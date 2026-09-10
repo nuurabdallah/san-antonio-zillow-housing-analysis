@@ -757,7 +757,7 @@ A positive Zestimate gap is a potential screening signal rather than proof that 
 
 ---
 
-# Repository Structure
+## Repository Structure
 
 ```text
 san-antonio-zillow-housing-analysis/
@@ -768,7 +768,13 @@ san-antonio-zillow-housing-analysis/
 │
 ├── data/
 │   ├── README.md
+│   ├── raw/
+│   │   ├── README.md
+│   │   └── San_Antonio_Zillow_Raw.csv
+│   │
 │   └── processed/
+│       ├── README.md
+│       ├── San_Antonio_Zillow_Processed.csv
 │       ├── San_Antonio_Zillow_Analysis.csv
 │       └── San_Antonio_Zillow_Feature_Engineered.csv
 │
@@ -808,23 +814,21 @@ san-antonio-zillow-housing-analysis/
 │   └── San_Antonio_Zillow_Dashboard.twbx
 │
 ├── reports/
+│   ├── README.md
 │   ├── data_quality/
-│   ├── outliers/
-│   ├── eda/
-│   ├── statistical_analysis/
+│   ├── exploratory_data_analysis/
 │   ├── feature_engineering/
-│   ├── visualization/
 │   ├── machine_learning/
 │   ├── model_evaluation/
-│   └── business_insights/
+│   ├── outliers/
+│   ├── statistical_analysis/
+│   └── visualization/
 │
 └── images/
     ├── dashboard_1_market.png
     ├── dashboard_2_zestimate.png
     └── dashboard_3_opportunities.png
 ```
-
----
 
 # Reproducibility
 
